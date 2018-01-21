@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"regexp"
+	"strings"
 )
 
 func main() {
@@ -30,30 +30,62 @@ func main() {
 		log.Fatal("run failure: ", err)
 	}
 
+	guesses := 0
 	guess := 10
-	scanner := bufio.NewScanner(stdout)
 	won := false
-	var winMsg = regexp.MustCompile(`^Correct`)
+	//s := bufio.NewScanner(stdout)
+	//s.Scan()
+	//fmt.Println(s.Text())
 	for won == false {
-		scanner.Scan()
-		input := scanner.Text()
-		fmt.Println(input)
-		switch {
-		case input == "Too high":
-			guess--
-		case input == "Too low":
-			guess++
-		case winMsg.MatchString(input):
+		guesses++
+		go func() {
+			//fmt.Println(guess)
+			io.WriteString(stdin, fmt.Sprintf("%d\n", guess))
+		}()
+		mod := RecognizeInput(stdout)
+		if mod == 0 {
 			won = true
-		default:
-			go func() {
-				fmt.Println(guess)
-				io.WriteString(stdin, fmt.Sprintf("%d\n", guess))
-			}()
 		}
+		guess += mod
 	}
 
 	if err := cmd.Wait(); err != nil {
 		log.Fatal("wait failure: ", err)
+	}
+
+	fmt.Printf("%d guesses\n", guesses)
+}
+
+func RecognizeInput(reader io.Reader) int {
+	m := []struct {
+		A string
+		Z int
+	}{
+		{"Correct", 0},
+		{"Too high", -1},
+		{"Too low", 1},
+	}
+
+	r := struct {
+		A string
+		Z int
+	}{}
+
+	b := bufio.NewReader(reader)
+	for {
+		c, _, err := b.ReadRune()
+		if err != nil {
+			if err == io.EOF {
+				return 0
+			}
+			log.Fatal(err)
+		}
+		//fmt.Print(string(c))
+		r.A = r.A + string(c)
+		for _, i := range m {
+			if strings.Contains(r.A, i.A) {
+				return i.Z
+			}
+		}
 	}
 }
